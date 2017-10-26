@@ -1,0 +1,263 @@
+---
+title: "Analysis of HH Without Children"
+author: "Martha Moreno"
+date: "October 4 2017"
+output: github_document
+---
+
+```{r setup, include=FALSE}
+
+rm(list=ls())
+
+knitr::opts_chunk$set(echo = TRUE)
+
+library(knitr)
+library(ltm)
+library(foreign)
+library(ggplot2)
+library(irtoys)
+library(gmodels)
+
+#require(tidyverse)
+
+#setwd ("C:/Users/Martha/Documents/Applied Statistics/3rd semester/Independent Study")
+opts_knit$set(root.dir = "C:/Users/Martha/Documents/Applied Statistics/3rd semester/Independent Study")
+
+```
+
+
+#Research Question:
+Fitting several IRT  models on the Food Security Scale to assess:
+
+1) Which model has better fit between: 
+    a) unconstrained Rasch Model
+    b) constrained Rasch Model
+    c) Two Parameter Logistic Model
+
+2) Can we obtain significantly different cut-off points using the best model?
+
+2) If the model shows a good fit, do we have parameter invariance between Mexico´s and U.S. scales?
+
+##Food Security Scale
+Data from the Current Population Survey - December of 2016
+
+##How is the survey conducted:
+
+###screening question - not used for food security measure
+
+q1=hess1 
+ 
+###stage 1
+
+q2=hess2 
+ 
+q3=hess3 
+ 
+q4=hess4 
+ 
+if there are children <18 ask q5 and q6
+
+q5=hess5 
+ 
+q6=hess6 
+
+1st-level Screen (screener for Stage 2): If AFFIRMATIVE RESPONSE to ANY ONE of Questions 2-6 (i.e., "often true" or "sometimes true") OR response [3] or [4] to Question 1 (if administered), then continue to Stage 2; otherwise, skip to end.
+
+###stage 2
+
+q7=hesh1 
+ 
+q8=hesh2 
+ 
+q8a=heshf2 
+ 
+q9=hesh3 
+ 
+q10=hesh4 
+ 
+q11=hesh5 
+
+2nd-level Screen (screener for Stage 3): If AFFIRMATIVE RESPONSE to ANY ONE of Questions 7 through 11, then continue to Stage 3; otherwise, skip to end.
+
+###stage 3
+
+q12=hessh1 
+ 
+q12a=hesshf1 
+ 
+q13=hessh2 
+ 
+q14=hessh4 
+ 
+q14a=hesshf4 
+ 
+q15=hessh3 
+ 
+q16=hessh5 
+
+
+```{r}
+
+dat<-read.dta("data/data_clean_nochild.dta")
+
+items1=cbind(dat$i2, dat$i3, dat$i4, dat$i8, dat$i8a, dat$i9, dat$i10, dat$i11, dat$i12, dat$i12a)
+items2=cbind(dat$i2, dat$i3, dat$i4, dat$i8, dat$i9, dat$i10, dat$i11, dat$i12)
+
+#Frequencies
+freq1<-apply(items1,2,table)
+freq2<-apply(items2,2,table)
+freq1<-addmargins(freq1)
+freq2<-addmargins(freq2)
+
+#Means of affirmative answers
+means1<-apply(items1,2,mean)
+means2<-apply(items2,2,mean)
+
+#Summary table of 10 items
+table1<-rbind(round(freq1[1:3,1:10],0),round(means1*100,2))
+nam1<-c("Item2", "Item3", "Item4", "Item8", "Item8a", "Item9", "Item10", "Item11", "Item12", "Item12a")
+nam2<-c("No", "Yes", "Total", "Percentage")
+colnames(table1)<-nam1
+rownames(table1)<-nam2
+
+#Summary table of 8 items
+table2<-rbind(round(freq2[1:3,1:8],0),round(means2*100,2))
+nam1<-c("Item2", "Item3", "Item4", "Item8", "Item9", "Item10", "Item11", "Item12")
+nam2<-c("No", "Yes", "Total", "Percentage")
+colnames(table2)<-nam1
+rownames(table2)<-nam2
+
+#Plots of affirmative answers for each item
+means.plot1<-qplot(x=1:length(means1), y=means1, main="Proportion of Affirmative Answers 10 items", xlab="Items for hh Without Children", ylab="") + geom_line()
+means.plot2<-qplot(x=1:length(means2), y=means2, main="Proportion of Affirmative Answers 8 items", xlab="Items for hh Without Children", ylab="") + geom_line()
+
+#Using descript from ltm to get the biserial correlations:
+d1<-descript(items1)
+correlations1 <- d1$bisCorr
+d2<-descript(items2)
+correlations2 <- d2$bisCorr
+
+#Biserial correlations plots
+cor.plot1<-qplot(x=1:length(correlations1), y=correlations1, main="Biserial Correlations 10 items", xlab="Items for hh without children", ylab="") + geom_line()
+cor.plot2<-qplot(x=1:length(correlations2), y=correlations2, main="Biserial Correlations 8 items", xlab="Items for hh without children", ylab="") + geom_line()
+
+d1
+d2
+
+
+```
+
+##Descriptive analysis for households without children (8 items)
+
+###Frequencies and means
+
+```{r}
+
+table1
+table2
+
+means.plot2
+means.plot1
+
+```
+
+###Biserial correlations
+```{r}
+
+correlations1
+correlations2
+
+cor.plot1
+cor.plot2
+
+```
+
+##Status of food security vs raw score
+
+```{r}
+
+CrossTable(dat$rawscore,dat$status, expected = F, prop.r=F, prop.c=F, prop.t=F, prop.chisq=F, chisq = F, fisher=F, mcnemar=F, resid=F, sresid=F, asresid=F)
+
+```
+
+##Testing several models just using the 8 items (no follow ups)
+
+1) Fit a Rasch Model. Rasch models are also known as one parameter models. It assumes that the guessing and the discrimination parameter are the same across items:
+
+In this case we are fitting an unconstrained and a constrained Rasch Model with:
+
+  $\alpha_i=2$ $\forall i$ 
+  
+  $c_i=0$ $\forall i$
+
+2) Fit a Two Parameter Model, in this case the model estimates the discrimination parameter for each item, but $c_i=0$ $\forall i$
+
+###Rasch Model
+
+```{r}
+
+#Fit a Rasch model - hessian matrix is non-positive!!!
+fit.rasch<-rasch(items2)
+summary(fit.rasch)
+
+#Constraint? - this fits better?
+fit.rasch<-rasch(items2, constraint=cbind(9,2))
+summary(fit.rasch)
+
+#Margins?? - we don´t want´t the chi-square to be significant
+margins(fit.rasch)
+margins(fit.rasch, type="three-way")
+
+#Goodness of fit cannot be computed with unconstrained model??
+#GoF.rasch(fit.rasch, B = 100)
+
+#Residuals
+#plot residuals vs ability to test homoscedasticity??
+res.rasch<-residuals(fit.rasch)
+
+#Factor scores
+fs.rasch<-factor.scores(fit.rasch)
+#plot(fs.rasch)
+
+#ICC and information curves
+par(lwd=2)
+plot(fit.rasch, legend = TRUE, cx = "left", cex.main = 1.5, cex.lab = 1.5, cex = 1.5)
+plot(fit.rasch, type = "IIC", annot = FALSE, cex.main = 1.5, cex.lab = 1.5)
+plot(fit.rasch, type = "IIC", items = 0, cex.main = 1.5, cex.lab = 1.5)
+
+
+
+
+```
+
+###2PL Model
+
+```{r}
+
+#Fit a 2PL model - up to two latent variables with names z1 and z2
+fit.2pl<-ltm(items2~z1, IRT.param = T)
+summary(fit.2pl)
+
+#Margins - is this due to sample size??
+margins(fit.2pl)
+margins(fit.2pl, type="three-way")
+
+#Compare the fit of the Rasch Model vs the 2PL Model - is this a better fit??
+anova(fit.rasch, fit.2pl)
+
+#Residuals
+#plot residuals vs ability to test homoscedasticity??
+res.2pl<-residuals(fit.2pl)
+
+#Factor scores - is the lack of a normal distribution here a problem??
+fs.2pl<-factor.scores(fit.2pl)
+#plot(fs.2pl)
+
+#ICC and informaction curves
+par(lwd=2)
+plot(fit.2pl, legend = TRUE, cx = "left", cex.main = 1.5, cex.lab = 1.5, cex = 1.5)
+plot(fit.2pl, type = "IIC", annot = FALSE, cex.main = 1.5, cex.lab = 1.5)
+plot(fit.2pl, type = "IIC", items = 0, cex.main = 1.5, cex.lab = 1.5)
+
+```
+
