@@ -1,0 +1,138 @@
+---
+title: "Final models using mirt package"
+author: "Martha Moreno"
+date: "21 de noviembre de 2017"
+output: github_document
+---
+
+```{r setup, include=FALSE}
+rm(list=ls())
+
+knitr::opts_chunk$set(echo = TRUE)
+
+library(knitr)
+library(ltm)
+library(foreign)
+library(ggplot2)
+library(irtoys)
+library(gmodels)
+library(mirt)
+library(classify)
+
+#require(tidyverse)
+
+#setwd ("C:/Users/Martha/Documents/Applied Statistics/3rd semester/Independent Study")
+opts_knit$set(root.dir = "C:/Users/Martha/Documents/Applied Statistics/3rd semester/Independent Study")
+
+```
+
+#### Read data
+
+```{r}
+dat<-read.dta("data/data_clean_nochild.dta")
+
+items1=cbind(dat$i2, dat$i3, dat$i4, dat$i8, dat$i8a, dat$i9, dat$i10, dat$i11, dat$i12, dat$i12a)
+items2=cbind(dat$i2, dat$i3, dat$i4, dat$i8, dat$i9, dat$i10, dat$i11, dat$i12)
+nam1<-c("Item2", "Item3", "Item4", "Item8", "Item9", "Item10", "Item11", "Item12")
+nam2<-c("No", "Yes", "Total", "Percentage")
+colnames(items2)<-nam1
+
+items3 <- data.frame(items2)
+index <- sample(1:nrow(items3), 500)
+items.sample <- items3[index,]
+
+dat$weight.model = dat$weighth*(51421/157115550)
+
+dat.sample <- dat[index,]
+
+
+```
+
+
+
+```{r}
+
+rawscore.8i=rowSums(items2)
+  
+CrossTable(rawscore.8i,dat$status, expected = F, prop.r=F, prop.c=F, prop.t=F, prop.chisq=F, chisq = F, fisher=F, mcnemar=F, resid=F, sresid=F, asresid=F)
+
+
+```
+
+#### Final models using MIRT
+
+```{r}
+
+#Rasch model
+fit.rasch.final <- mirt(items2, model=1, itemtype='Rasch', survey.weights = dat$weight.model)
+#2PL model
+fit.2pl.final <- mirt(items2, model=1, itemtype='2PL', survey.weights = dat$weight.model)
+
+#Fit and coefficients of Rasch 
+fit.rasch.final
+coef(fit.rasch.final,simplify=T)
+
+#Fit and coefficients of 2PL
+fit.2pl.final
+coef(fit.2pl.final,simplify=T)
+
+#Anova
+anova(fit.rasch.final, fit.2pl.final)  
+
+#ICC? -- try to do this graph?
+plot(fit.rasch.final, type = 'trace')
+plot(fit.2pl.final, type = 'trace')
+
+```
+
+#### We take a subsample of 500 to get the chi-square since we are overpowered. 
+
+If the $\chi^2$ diff-value is significant, the "larger" model with more freely estimated parameters fits the data better than the "smaller" model in which the parameters in question are fixed. So it "pays off" to estimate the additional parameters and to prefer the "larger" model. In case the $\chi^2$ diff-value is insignificant, both models fit equally well statistically, so the parameters in question can be eliminated from the model (fixed to zero) and the "smaller" model can be accepted just as well
+
+```{r}
+
+fit.rasch.sample <- mirt(items.sample, model=1, itemtype='Rasch', survey.weights = dat.sample$weight.model)
+fit.2pl.sample <- mirt(items.sample, model=1, itemtype='2PL', survey.weights = dat.sample$weight.model)
+
+fit.rasch.sample
+coef(fit.rasch.sample,simplify=T)
+
+fit.2pl.sample
+coef(fit.2pl.sample,simplify=T)
+
+anova(fit.rasch.sample, fit.2pl.sample)  
+```
+
+#### Predicting scores from the Rasch and 2PL models
+
+In this part we use maximum-likelihood and weighted likelihood estimation of the ability scores.
+```{r}
+
+f1 <- fscores(fit.rasch.final, method='ML')
+f2 <- fscores(fit.2pl.final, method='ML')
+f3 <- fscores(fit.rasch.final, method='WLE')
+f4 <- fscores(fit.2pl.final, method='WLE')
+
+qplot(x=f3,y=f4, main='Food Security Scores', xlab='Rasch Model', ylab='2PL Model')
+
+```
+
+#### Kolmogorov Smirnov Test
+
+Null hypothesis is that both samples are drawn from the same distribution. As we can see, we reject the null, so there is no evidence to support that both scores are interchangeable??
+
+```{r}
+
+ks.test(f3, f4)
+
+```
+
+#### Classification
+
+
+```{r}
+
+
+
+```
+
